@@ -1,5 +1,22 @@
 #include <zukou.h>
 
+#include <fcntl.h>
+#include <linux/input-event-codes.h>
+#include <unistd.h>
+#include <wayland-client-protocol.h>
+
+#include <array>
+#include <cstdio>
+#include <cstring>
+#include <glm/common.hpp>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/quaternion_float.hpp>
+#include <glm/ext/quaternion_transform.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/ext/vector_float4.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/string_cast.hpp>
+
 #include "jpeg-texture.h"
 #include "sphere.h"
 
@@ -33,17 +50,49 @@ class CelestialBody final : public zukou::IBoundedDelegate,
 
   void Configure(glm::vec3 half_size, uint32_t serial) override
   {
-    float radius = glm::min(half_size.x, glm::min(half_size.y, half_size.z));
-    sphere_.Render(radius, glm::mat4(1));
+    radius_ = glm::min(half_size.x, glm::min(half_size.y, half_size.z));
+    sphere_.Render(radius_, glm::mat4(1));
+
+    zukou::Region region(&system_);
+    region.Init();
+    region.AddCuboid(half_size, glm::vec3(), glm::quat());
 
     bounded_.SetTitle("Zukou Celestial Body");
+    bounded_.SetRegion(&region);
     bounded_.AckConfigure(serial);
+    bounded_.Commit();
+  }
+
+  void RayEnter(uint32_t /*serial*/, zukou::VirtualObject* /*virtual_object*/,
+      glm::vec3 /*origin*/, glm::vec3 /*direction*/) override
+  {
+    sphere_.set_color(glm::vec4(0.2F));
+    bounded_.Commit();
+  };
+  void RayLeave(
+      uint32_t /*serial*/, zukou::VirtualObject* /*virtual_object*/) override
+  {
+    sphere_.set_color(glm::vec4(0.F));
+    bounded_.Commit();
+  };
+
+  void RayAxisFrame(const zukou::RayAxisEvent& event) override
+  {
+    if (glm::abs(event.vertical) <= 0.1f) {
+      return;
+    }
+    float diff = event.vertical / 365.0f;
+    rotate_ *= glm::rotate(glm::mat4(1.F), diff, glm::vec3{0, 1, 0});
+    sphere_.Render(radius_, rotate_);
     bounded_.Commit();
   }
 
  private:
   zukou::System system_;
   zukou::Bounded bounded_;
+
+  float radius_;
+  glm::mat4 rotate_ = glm::mat4(1.F);
 
   const char* texture_path_;
 
@@ -67,7 +116,7 @@ main(int argc, char const* argv[])
 
   CelestialBody celestial_body(argv[1]);
 
-  if (!celestial_body.Init(0.1)) return EXIT_FAILURE;
+  if (!celestial_body.Init(0.2)) return EXIT_FAILURE;
 
   return celestial_body.Run();
 }

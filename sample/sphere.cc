@@ -4,6 +4,12 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/scalar_constants.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/ext/vector_float4.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #include "color.fragment.h"
 #include "default.vert.h"
@@ -37,6 +43,12 @@ Sphere::Vertex::Vertex(float x, float y, float z, float u, float v)
     : x(x), y(y), z(z), u(u), v(v)
 {}
 
+void
+Sphere::set_color(glm::vec4 color)
+{
+  base_technique_.Uniform(0, "color", color);
+}
+
 bool
 Sphere::Render(float radius, glm::mat4 transform)
 {
@@ -44,7 +56,7 @@ Sphere::Render(float radius, glm::mat4 transform)
     return false;
   }
 
-  auto local_model = glm::scale(transform, glm::vec3(radius));
+  auto local_model = transform * glm::scale(glm::mat4(1.F), glm::vec3(radius));
   base_technique_.Uniform(0, "local_model", local_model);
 
   if (wire_) base_technique_.Uniform(0, "color", glm::vec4(1, 0, 0, 1));

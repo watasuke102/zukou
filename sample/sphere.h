@@ -65,6 +65,8 @@
 
 #include <zukou.h>
 
+#include <glm/ext/quaternion_float.hpp>
+#include <glm/ext/vector_float4.hpp>
 #include <vector>
 
 class Sphere
@@ -85,6 +87,8 @@ class Sphere
   void Bind(std::unique_ptr<zukou::GlTexture> texture);
 
   bool Render(float radius, glm::mat4 transform);
+
+  void set_color(glm::vec4 color);
 
  private:
   bool Init();
