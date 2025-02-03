@@ -19,6 +19,7 @@
 #include <string>
 
 #include "jpeg-texture.h"
+#include "png-texture.h"
 #include "sphere.h"
 
 class CelestialBody final : public zukou::IBoundedDelegate,
@@ -86,7 +87,6 @@ class CelestialBody final : public zukou::IBoundedDelegate,
   void RayButton(uint32_t serial, uint32_t /*time*/, uint32_t button,
       bool pressed) override
   {
-    std::printf("Button: %d, pressed: %d\n", button, pressed);
     if (button == BTN_LEFT && pressed) {
       bounded_.Move(serial);
     }
@@ -94,38 +94,15 @@ class CelestialBody final : public zukou::IBoundedDelegate,
       return;
     }
 
-    std::string acceptable_prefix("text/plain");
+    std::string text_plain("text/plain");
+    std::string image_png("image/png");
+    std::string image_jpeg("image/jpeg");  // TODO
     for (const auto& mime_type : system_.data_offer_mime_types()) {
-      if (mime_type.substr(0, acceptable_prefix.size()).c_str() !=
-          acceptable_prefix)
-        continue;
-      printf("requesting clipboard (type=%s)\n", mime_type.c_str());
-      system_.RequestDataOfferReceive(
-          mime_type,
-          [this](int fd, bool is_succeeded, void* /*data*/) {
-            if (!is_succeeded) {
-              return;
-            }
-            std::array<char, 1024> path_buffer;
-            int size = read(fd, path_buffer.data(), path_buffer.size());
-            path_buffer[size] = '\0';
-            printf("try to open `%s`\n", path_buffer.data());
-            close(fd);
-
-            auto jpeg_texture = std::make_unique<JpegTexture>(&system_);
-            if (!jpeg_texture->Init()) {
-              puts("Failed to initialize JPEG texture");
-              return;
-            }
-            if (!jpeg_texture->Load(path_buffer.data())) {
-              puts("Failed to load JPEG texture");
-              return;
-            }
-            sphere_.ReBind(std::move(jpeg_texture));
-            bounded_.Commit();
-          },
-          nullptr);
-      break;
+      if (mime_type.substr(0, text_plain.size()).c_str() == text_plain) {
+        PasteFilePath(mime_type);
+      } else if (mime_type.substr(0, image_png.size()).c_str() == image_png) {
+        PastePng(mime_type);
+      }
     }
   };
 
@@ -150,6 +127,59 @@ class CelestialBody final : public zukou::IBoundedDelegate,
   const char* texture_path_;
 
   Sphere sphere_;
+
+  void PastePng(const std::string& mime_type)
+  {
+    printf("requesting clipboard (type=%s)\n", mime_type.c_str());
+    system_.RequestDataOfferReceive(
+        mime_type,
+        [this](int fd, bool is_succeeded, void* /*data*/) {
+          if (!is_succeeded) {
+            return;
+          }
+          auto png_texture = std::make_unique<PngTexture>(&system_);
+          if (!png_texture->Init()) {
+            puts("Failed to load PNG texture");
+            return;
+          }
+          if (!png_texture->Load(fd)) {
+            puts("Failed to load PNG texture");
+            return;
+          }
+          sphere_.ReBind(std::move(png_texture));
+          bounded_.Commit();
+        },
+        nullptr);
+  }
+  void PasteFilePath(const std::string& mime_type)
+  {
+    printf("requesting clipboard (type=%s)\n", mime_type.c_str());
+    system_.RequestDataOfferReceive(
+        mime_type,
+        [this](int fd, bool is_succeeded, void* /*data*/) {
+          if (!is_succeeded) {
+            return;
+          }
+          std::array<char, 1024> path_buffer;
+          int size = read(fd, path_buffer.data(), path_buffer.size());
+          path_buffer[size] = '\0';
+          printf("try to open `%s`\n", path_buffer.data());
+          close(fd);
+
+          auto jpeg_texture = std::make_unique<JpegTexture>(&system_);
+          if (!jpeg_texture->Init()) {
+            puts("Failed to initialize JPEG texture");
+            return;
+          }
+          if (!jpeg_texture->Load(path_buffer.data())) {
+            puts("Failed to load JPEG texture");
+            return;
+          }
+          sphere_.ReBind(std::move(jpeg_texture));
+          bounded_.Commit();
+        },
+        nullptr);
+  }
 };
 
 const char* usage =

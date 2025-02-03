@@ -30,6 +30,7 @@ _samples = {
     'celestial-body.cc',
     'sphere.cc',
     'jpeg-texture.cc',
+    'png-texture.cc',
     color_frag_glsl,
     texture_frag_glsl,
     default_vert_glsl,
@@ -39,6 +40,7 @@ _samples = {
 _samples_dep = [
   wayland_client_dep,
   jpeg_dep,
+  png_dep,
 ]
 
 foreach name, sources : _samples
