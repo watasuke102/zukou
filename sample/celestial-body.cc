@@ -73,6 +73,12 @@ class CelestialBody final : public zukou::IBoundedDelegate,
   void RayLeave(
       uint32_t /*serial*/, zukou::VirtualObject* /*virtual_object*/) override
   {
+    std::puts(">>>> mime_types");
+    for (const auto& mime_type : system_.data_offer_mime_types()) {
+      printf("     %s\n", mime_type.c_str());
+    }
+    std::puts(">>>> mime_types end");
+
     sphere_.set_color(glm::vec4(0.F));
     bounded_.Commit();
   };
@@ -87,18 +93,40 @@ class CelestialBody final : public zukou::IBoundedDelegate,
     if (button != BTN_RIGHT || !pressed) {
       return;
     }
-    std::string mime_type = "text/plain;charset=utf-8";
-    system_.RequestDataOfferReceive(
-        mime_type,
-        [](int fd, bool is_succeeded, void* /*data*/) {
-          if (is_succeeded) {
-            std::array<char, 1024> buf;
-            read(fd, buf.data(), buf.size());
-            printf("clipboard: %s\n", buf.data());
+
+    std::string acceptable_prefix("text/plain");
+    for (const auto& mime_type : system_.data_offer_mime_types()) {
+      if (mime_type.substr(0, acceptable_prefix.size()).c_str() !=
+          acceptable_prefix)
+        continue;
+      printf("requesting clipboard (type=%s)\n", mime_type.c_str());
+      system_.RequestDataOfferReceive(
+          mime_type,
+          [this](int fd, bool is_succeeded, void* /*data*/) {
+            if (!is_succeeded) {
+              return;
+            }
+            std::array<char, 1024> path_buffer;
+            int size = read(fd, path_buffer.data(), path_buffer.size());
+            path_buffer[size] = '\0';
+            printf("try to open `%s`\n", path_buffer.data());
             close(fd);
-          }
-        },
-        nullptr);
+
+            auto jpeg_texture = std::make_unique<JpegTexture>(&system_);
+            if (!jpeg_texture->Init()) {
+              puts("Failed to initialize JPEG texture");
+              return;
+            }
+            if (!jpeg_texture->Load(path_buffer.data())) {
+              puts("Failed to load JPEG texture");
+              return;
+            }
+            sphere_.ReBind(std::move(jpeg_texture));
+            bounded_.Commit();
+          },
+          nullptr);
+      break;
+    }
   };
 
   void RayAxisFrame(const zukou::RayAxisEvent& event) override

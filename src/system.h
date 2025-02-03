@@ -79,6 +79,7 @@ class System::Impl
   wl_data_device_manager *data_device_manager_ = nullptr;
   wl_data_device *data_device_ = nullptr;
   wl_data_offer *data_offer_ = nullptr;
+  std::vector<std::string> data_offer_mime_types;
 
   zwn_compositor *zwn_compositor_ = nullptr;
   zwn_seat *zwn_seat_ = nullptr;

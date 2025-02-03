@@ -85,6 +85,7 @@ class Sphere
   ~Sphere();
 
   void Bind(std::unique_ptr<zukou::GlTexture> texture);
+  void ReBind(std::unique_ptr<zukou::GlTexture> texture);
 
   bool Render(float radius, glm::mat4 transform);
 

@@ -70,7 +70,8 @@ class System final
 
   void Terminate(int exit_status);
 
-  void RequestDataOfferReceive(std::string &mime_type,
+  const std::vector<std::string> &data_offer_mime_types();
+  void RequestDataOfferReceive(const std::string &mime_type,
       std::function<void(int fd, bool is_succeeded, void *data)> &&callback,
       void *data);
 

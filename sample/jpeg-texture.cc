@@ -3,6 +3,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <cstring>
+
 JpegTexture::JpegTexture(zukou::System *system)
     : zukou::GlTexture(system), pool_(system)
 {}
@@ -39,7 +41,8 @@ JpegTexture::Load(const char *texture_path)
 
   fp = fopen(texture_path, "rb");
   if (fp == nullptr) {
-    fprintf(stderr, "JpegTexture::Load -- failed to open %s\n", texture_path);
+    fprintf(stderr, "JpegTexture::Load -- failed to open %s: %s\n",
+        texture_path, std::strerror(errno));
     goto err;
   }
 

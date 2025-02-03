@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <cassert>
 #include <cstring>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/scalar_constants.hpp>
@@ -68,6 +69,15 @@ void
 Sphere::Bind(std::unique_ptr<zukou::GlTexture> texture)
 {
   texture_ = std::move(texture);
+}
+void
+Sphere::ReBind(std::unique_ptr<zukou::GlTexture> texture)
+{
+  assert(initialized_);
+  texture_ = std::move(texture);
+  base_technique_.Bind(0, "", texture_.get(), GL_TEXTURE_2D, &sampler_);
+  sampler_.Parameteri(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  sampler_.Parameteri(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 bool

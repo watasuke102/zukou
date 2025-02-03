@@ -17,51 +17,43 @@
 namespace zukou {
 const wl_data_offer_listener System::Impl::data_offer_listener_ = {
     // offer
-    [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
-        const char *mime_type) { LOG_DEBUG("offer: %s", mime_type); },
+    [](void *data, struct wl_data_offer * /* wl_data_offer */,
+        const char *mime_type) {
+      auto self = static_cast<System::Impl *>(data);
+      self->data_offer_mime_types.emplace_back(mime_type);
+    },
     // source_actions
     [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
-        uint32_t /* source_actions */) {
-      LOG_DEBUG("wl_data_device.source_actions()");
-    },
+        uint32_t /* source_actions */) {},
     // action
     [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
-        uint32_t /* dnd_action */) { LOG_DEBUG("wl_data_device.action()"); },
+        uint32_t /* dnd_action */) {},
 };  // namespace zukou
 
 const wl_data_device_listener System::Impl::data_device_listener_ = {
     // data_offer
     [](void *data, struct wl_data_device * /* wl_data_device */,
         struct wl_data_offer *id) {
-      LOG_DEBUG("wl_data_device.action()");
       auto self = static_cast<System::Impl *>(data);
       self->data_offer_ = id;
       wl_data_offer_add_listener(id, &data_offer_listener_, data);
+      self->data_offer_mime_types.clear();
     },
     // enter
     [](void * /* data */, struct wl_data_device * /* wl_data_device */,
         uint32_t /* serial */, struct wl_surface * /* surface */,
         wl_fixed_t /* x */, wl_fixed_t /* y */,
-        struct wl_data_offer * /* id */) {
-      LOG_DEBUG("wl_data_device.enter()");
-    },
+        struct wl_data_offer * /* id */) {},
     // leave
-    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {
-      LOG_DEBUG("wl_data_device.leave()");
-    },
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {},
     // motion
     [](void * /* data */, struct wl_data_device * /* wl_data_device */,
-        uint32_t /* time */, wl_fixed_t /* x */,
-        wl_fixed_t /* y */) { LOG_DEBUG("wl_data_device.motion()"); },
+        uint32_t /* time */, wl_fixed_t /* x */, wl_fixed_t /* y */) {},
     // drop
-    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {
-      LOG_DEBUG("wl_data_device.drop()");
-    },
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {},
     // selection
     [](void * /* data */, struct wl_data_device * /* wl_data_device */,
-        struct wl_data_offer * /* id */) {
-      LOG_DEBUG("wl_data_device.selection()");
-    },
+        struct wl_data_offer * /* id */) {},
 };  // namespace zukou
 
 const zwn_ray_listener System::Impl::ray_listener_ = {
@@ -439,8 +431,13 @@ System::Terminate(int exit_status)
   pimpl->loop_.Terminate(exit_status);
 }
 
+ZUKOU_EXPORT const std::vector<std::string> &
+System::data_offer_mime_types()
+{
+  return pimpl->data_offer_mime_types;
+}
 ZUKOU_EXPORT void
-System::RequestDataOfferReceive(std::string &mime_type,
+System::RequestDataOfferReceive(const std::string &mime_type,
     std::function<void(int fd, bool is_succeeded, void *data)> &&callback,
     void *data)
 {
