@@ -1,9 +1,9 @@
 #include <zukou.h>
 
-#include <fcntl.h>
 #include <linux/input-event-codes.h>
 #include <unistd.h>
 #include <wayland-client-protocol.h>
+#include <wayland-client.h>
 
 #include <array>
 #include <cstdio>
@@ -16,6 +16,7 @@
 #include <glm/ext/vector_float4.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <string>
 
 #include "jpeg-texture.h"
 #include "sphere.h"
@@ -74,6 +75,30 @@ class CelestialBody final : public zukou::IBoundedDelegate,
   {
     sphere_.set_color(glm::vec4(0.F));
     bounded_.Commit();
+  };
+
+  void RayButton(uint32_t serial, uint32_t /*time*/, uint32_t button,
+      bool pressed) override
+  {
+    std::printf("Button: %d, pressed: %d\n", button, pressed);
+    if (button == BTN_LEFT && pressed) {
+      bounded_.Move(serial);
+    }
+    if (button != BTN_RIGHT || !pressed) {
+      return;
+    }
+    std::string mime_type = "text/plain;charset=utf-8";
+    system_.RequestDataOfferReceive(
+        mime_type,
+        [](int fd, bool is_succeeded, void* /*data*/) {
+          if (is_succeeded) {
+            std::array<char, 1024> buf;
+            read(fd, buf.data(), buf.size());
+            printf("clipboard: %s\n", buf.data());
+            close(fd);
+          }
+        },
+        nullptr);
   };
 
   void RayAxisFrame(const zukou::RayAxisEvent& event) override

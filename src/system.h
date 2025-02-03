@@ -2,10 +2,14 @@
 
 #include <zukou.h>
 
+#include <wayland-client-core.h>
+#include <wayland-client-protocol.h>
 #include <wayland-client.h>
 #include <zwin-client-protocol.h>
 #include <zwin-gles-v32-client-protocol.h>
 #include <zwin-shell-client-protocol.h>
+
+#include <vector>
 
 #include "loop.h"
 
@@ -34,6 +38,9 @@ class System::Impl
       uint32_t name, const char *interface, uint32_t version);
   static void HandleGlobalRemove(
       void *data, struct wl_registry *wl_registry, uint32_t name);
+
+  static const struct wl_data_offer_listener data_offer_listener_;
+  static const struct wl_data_device_listener data_device_listener_;
 
   static const struct zwn_seat_listener seat_listener_;
   static void HandleSeatCapabilities(
@@ -68,6 +75,11 @@ class System::Impl
   wl_display *display_ = nullptr;
   wl_registry *registry_ = nullptr;
 
+  wl_seat *wl_seat_ = nullptr;
+  wl_data_device_manager *data_device_manager_ = nullptr;
+  wl_data_device *data_device_ = nullptr;
+  wl_data_offer *data_offer_ = nullptr;
+
   zwn_compositor *zwn_compositor_ = nullptr;
   zwn_seat *zwn_seat_ = nullptr;
   zwn_gles_v32 *zwn_gles_v32_ = nullptr;
@@ -79,7 +91,7 @@ class System::Impl
   RayAxisEvent ray_axis_event_;
 
   Loop loop_;
-  std::unique_ptr<EventSource> event_source_;
+  std::vector<std::unique_ptr<EventSource>> event_source_;
 };
 
 Loop *

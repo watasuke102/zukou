@@ -1,6 +1,9 @@
 #include "system.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <wayland-client-protocol.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -9,8 +12,57 @@
 #include "convert.h"
 #include "logger.h"
 #include "loop.h"
+#include "zukou.h"
 
 namespace zukou {
+const wl_data_offer_listener System::Impl::data_offer_listener_ = {
+    // offer
+    [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
+        const char *mime_type) { LOG_DEBUG("offer: %s", mime_type); },
+    // source_actions
+    [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
+        uint32_t /* source_actions */) {
+      LOG_DEBUG("wl_data_device.source_actions()");
+    },
+    // action
+    [](void * /* data */, struct wl_data_offer * /* wl_data_offer */,
+        uint32_t /* dnd_action */) { LOG_DEBUG("wl_data_device.action()"); },
+};  // namespace zukou
+
+const wl_data_device_listener System::Impl::data_device_listener_ = {
+    // data_offer
+    [](void *data, struct wl_data_device * /* wl_data_device */,
+        struct wl_data_offer *id) {
+      LOG_DEBUG("wl_data_device.action()");
+      auto self = static_cast<System::Impl *>(data);
+      self->data_offer_ = id;
+      wl_data_offer_add_listener(id, &data_offer_listener_, data);
+    },
+    // enter
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */,
+        uint32_t /* serial */, struct wl_surface * /* surface */,
+        wl_fixed_t /* x */, wl_fixed_t /* y */,
+        struct wl_data_offer * /* id */) {
+      LOG_DEBUG("wl_data_device.enter()");
+    },
+    // leave
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {
+      LOG_DEBUG("wl_data_device.leave()");
+    },
+    // motion
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */,
+        uint32_t /* time */, wl_fixed_t /* x */,
+        wl_fixed_t /* y */) { LOG_DEBUG("wl_data_device.motion()"); },
+    // drop
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */) {
+      LOG_DEBUG("wl_data_device.drop()");
+    },
+    // selection
+    [](void * /* data */, struct wl_data_device * /* wl_data_device */,
+        struct wl_data_offer * /* id */) {
+      LOG_DEBUG("wl_data_device.selection()");
+    },
+};  // namespace zukou
 
 const zwn_ray_listener System::Impl::ray_listener_ = {
     System::Impl::HandleRayEnter,
@@ -224,6 +276,24 @@ System::Impl::HandleGlobal(void *data, struct wl_registry *registry,
     if (self->zwn_shm_) zwn_shm_destroy(self->zwn_shm_);
     self->zwn_shm_ = static_cast<zwn_shm *>(
         wl_registry_bind(registry, name, &zwn_shm_interface, version));
+  } else {  // wayland
+    if (std::strcmp(interface, "wl_seat") == 0) {
+      if (self->wl_seat_) wl_seat_destroy(self->wl_seat_);
+      self->wl_seat_ = static_cast<wl_seat *>(
+          wl_registry_bind(registry, name, &wl_seat_interface, version));
+    } else if (std::strcmp(interface, "wl_data_device_manager") == 0) {
+      if (self->data_device_manager_)
+        wl_data_device_manager_destroy(self->data_device_manager_);
+      self->data_device_manager_ =
+          static_cast<wl_data_device_manager *>(wl_registry_bind(
+              registry, name, &wl_data_device_manager_interface, version));
+    }
+  }
+  if (!self->data_device_ && self->wl_seat_ && self->data_device_manager_) {
+    self->data_device_ = wl_data_device_manager_get_data_device(
+        self->data_device_manager_, self->wl_seat_);
+    wl_data_device_add_listener(
+        self->data_device_, &data_device_listener_, self);
   }
 }
 
@@ -257,7 +327,7 @@ System::Impl::TryConnect(const char *socket)
     goto err_globals;
   }
 
-  event_source_ = loop_.AddFd(
+  event_source_.emplace_back(loop_.AddFd(
       wl_display_get_fd(display_), Loop::kEventReadable,
       [](int /*fd*/, uint32_t mask, void *data) {
         auto system = static_cast<System::Impl *>(data);
@@ -268,7 +338,7 @@ System::Impl::TryConnect(const char *socket)
           system->Poll();
         }
       },
-      this);
+      this));
 
   return true;
 
@@ -367,6 +437,35 @@ ZUKOU_EXPORT void
 System::Terminate(int exit_status)
 {
   pimpl->loop_.Terminate(exit_status);
+}
+
+ZUKOU_EXPORT void
+System::RequestDataOfferReceive(std::string &mime_type,
+    std::function<void(int fd, bool is_succeeded, void *data)> &&callback,
+    void *data)
+{
+  if (!pimpl->data_offer_) {
+    return;
+  }
+  int pipe[2];
+  if (pipe2(pipe, O_CLOEXEC) == -1) {
+    LOG_ERROR("Failed to call pipe2() : %s\n", std::strerror(errno));
+    return;
+  }
+  wl_data_offer_receive(pimpl->data_offer_, mime_type.c_str(), pipe[1]);
+  close(pipe[1]);
+
+  int at = pimpl->event_source_.size();
+  pimpl->event_source_.emplace_back(pimpl->loop()->AddFd(
+      pipe[0], Loop::kEventReadable,
+      [this, at, callback = std::move(callback)](
+          int fd, uint32_t mask, void *data) {
+        bool is_succeeded =
+            !(mask & Loop::kEventError || mask & Loop::kEventHangUp);
+        callback(fd, is_succeeded, data);
+        this->pimpl->event_source_[at].reset();
+      },
+      data));
 }
 
 ZUKOU_EXPORT

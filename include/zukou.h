@@ -1,7 +1,9 @@
 #pragma once
 
 #include <GLES3/gl32.h>
+#include <wayland-client-protocol.h>
 
+#include <functional>
 #include <glm/ext/quaternion_float.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <memory>
@@ -38,18 +40,18 @@ struct ISystemDelegate {
   virtual ~ISystemDelegate() = default;
 
   virtual void RayEnter(uint32_t /*serial*/, VirtualObject * /*virtual_object*/,
-      glm::vec3 /*origin*/, glm::vec3 /*direction*/){};
+      glm::vec3 /*origin*/, glm::vec3 /*direction*/) {};
 
   virtual void RayLeave(
-      uint32_t /*serial*/, VirtualObject * /*virtual_object*/){};
+      uint32_t /*serial*/, VirtualObject * /*virtual_object*/) {};
 
   virtual void RayMotion(
-      uint32_t /*time*/, glm::vec3 /*origin*/, glm::vec3 /*direction*/){};
+      uint32_t /*time*/, glm::vec3 /*origin*/, glm::vec3 /*direction*/) {};
 
   virtual void RayButton(uint32_t /*serial*/, uint32_t /*time*/,
-      uint32_t /*button*/, bool /*pressed*/){};
+      uint32_t /*button*/, bool /*pressed*/) {};
 
-  virtual void RayAxisFrame(const RayAxisEvent & /*event*/){};
+  virtual void RayAxisFrame(const RayAxisEvent & /*event*/) {};
 };
 
 class System final
@@ -67,6 +69,10 @@ class System final
   int Run() const;
 
   void Terminate(int exit_status);
+
+  void RequestDataOfferReceive(std::string &mime_type,
+      std::function<void(int fd, bool is_succeeded, void *data)> &&callback,
+      void *data);
 
   const std::unique_ptr<Impl> pimpl;
 };
@@ -113,7 +119,7 @@ class ShmPool
 struct IBufferDelegate {
   virtual ~IBufferDelegate() = default;
 
-  virtual void Release(){};
+  virtual void Release() {};
 };
 
 class Buffer
@@ -133,7 +139,7 @@ class Buffer
 struct IVirtualObjectDelegate {
   virtual ~IVirtualObjectDelegate() = default;
 
-  virtual void Frame(uint32_t /*time*/){};
+  virtual void Frame(uint32_t /*time*/) {};
 };
 
 class VirtualObject
