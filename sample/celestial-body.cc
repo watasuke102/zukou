@@ -68,7 +68,7 @@ class CelestialBody final : public zukou::IBoundedDelegate,
   void RayEnter(uint32_t /*serial*/, zukou::VirtualObject* /*virtual_object*/,
       glm::vec3 /*origin*/, glm::vec3 /*direction*/) override
   {
-    sphere_.set_color(glm::vec4(0.2F));
+    sphere_.set_color(glm::vec4(0.1F));
     bounded_.Commit();
   };
   void RayLeave(
@@ -111,7 +111,7 @@ class CelestialBody final : public zukou::IBoundedDelegate,
     if (glm::abs(event.vertical) <= 0.1f) {
       return;
     }
-    float diff = event.vertical / 365.0f;
+    float diff = event.vertical / -500.0f;
     rotate_ *= glm::rotate(glm::mat4(1.F), diff, glm::vec3{0, 1, 0});
     sphere_.Render(radius_, rotate_);
     bounded_.Commit();
